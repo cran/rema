@@ -1,0 +1,12 @@
+test_that("throws when alpha values are invalid", {
+  te <- c(2, 2)
+  tt <- c(3, 3)
+  ce <- c(2, 2)
+  ct <- c(5, 5)
+  expect_error(rema(te, tt, ce, ct, alpha = -1), alpha.err)
+  expect_error(rema(te, tt, ce, ct, alpha = 1), alpha.err)
+  expect_error(rema(te, tt, ce, ct, alpha = TRUE), alpha.err)
+  expect_error(rema(te, tt, ce, ct, alpha = "Yo"), alpha.err)
+  expect_error(rema(te, tt, ce, ct, alpha = NaN), alpha.err)
+  expect_error(rema(te, tt, ce, ct, alpha = NA), alpha.err)
+})

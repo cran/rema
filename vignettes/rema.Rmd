@@ -1,0 +1,247 @@
+---
+title: "rema"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{rema}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(Rdpack)
+```
+
+```{r, include = FALSE}
+trt.events <- c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 5, 0, 2, 2, 26)
+trt.total <- c(121, 59, 358, 454, 238, 62, 186, 87, 369, 257, 798, 978, 605, 
+                277, 157, 650)
+ctrl.events <- c(0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 17, 35, 2, 5, 1, 12)
+ctrl.total <- c(118, 58, 164, 216, 268, 59, 97, 94, 386, 109, 804, 996, 608, 
+                198, 50, 220)
+mid.p <- TRUE
+alpha <- 0.05
+arguments <- list(as.name("rema"), "rema.obj" = as.name("antibiotics.rema"))
+TE <- 0.5708234
+CI <-c(0.1947373, 1.5984156)
+CMLE <- "CMLE"
+pval <- 0.2555818
+test.stat <- c(27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 
+               43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53)
+norm.probs <- c(6.716051e-12, 6.243005e-10, 4.605874e-08, 1.178779e-06, 
+                1.810190e-05, 1.900967e-04, 1.361220e-03, 6.418245e-03, 
+                2.290489e-02, 5.697199e-02, 1.160254e-01, 1.694432e-01, 
+                2.084688e-01, 1.724891e-01, 1.360043e-01, 6.433921e-02, 
+                3.335175e-02, 8.452742e-03, 3.156814e-03, 3.155256e-04, 
+                8.395551e-05, 2.683688e-06, 7.058532e-07, 6.078317e-09, 
+                1.895755e-09, 3.216023e-12, 5.180658e-14)
+dist <- data.frame(test.stat, norm.probs)
+tstat <- 37
+
+antibiotics.rema <- list("trt.events" = trt.events, 
+                         "trt.total" = trt.total, 
+                         "ctrl.events" = ctrl.events, 
+                         "ctrl.total" = ctrl.total,
+                         "mid.p" = mid.p,
+                         "alpha" = alpha,
+                         "arguments"= arguments, 
+                         "TE" = TE,
+                         "CI" = CI,
+                         "method"= CMLE,
+                         "pval" = pval,
+                         "dist" = dist,
+                         "tstat" = tstat)
+
+class(antibiotics.rema) <- c("rema", "list")
+```
+
+## Introduction
+
+The `rema` (rare event meta-analysis) package performs a permutation-based 
+meta-analysis for heterogeneous, rare event data. Rare events and sparse data
+often cause conventional approaches to fail. While recent work in this area has 
+provided options for sparse data, problems can still arise when heterogeneity 
+across the available studies differs based on treatment group. This package
+provides a meta-analysis approach that often outperforms traditional methods 
+when such patterns of rare events and heterogeneity are observed.
+
+It is important to note that `rema` is designed for small data sets with rare
+events. Computation time and memory usage increase rapidly as the number of 
+observed events increases. Particularly, `rema` should not be used on a machine 
+with a standard amount of RAM if the total number of observations is relatively 
+large *and* the observed event rates are relatively large, or if the total 
+number of observed events is relatively large.
+
+## The `rema` package
+
+```{r load package, eval=TRUE}
+library(rema)
+```
+
+The following table contains information from a data set regarding the use of
+antibiotics, which we will use to illustrate this package (data provided by 
+`r insert_citeOnly("Spinks2013;textual", "rema")`, 
+Analysis 4.1 and used in 
+`r insert_citeOnly("Friedrich2007;textual", "rema")`). 
+Sixteen studies, conducted from 1950 to 2000, compare the use of antibiotics to 
+prevent acute rheumatic fever, a sore throat resulting from inadequately treated
+strep throat or scarlet fever, compared to a placebo. The event of interest is 
+the occurrence of acute rheumatic fever.
+
+ Study | Antibiotics Events | Antibiotics Total | Placebo Events | Placebo Total 
+:-----:|:------------------:|:-----------------:|:--------------:|:-------------:
+ 1     | 0                  | 121               | 0              | 118
+ 2     | 0                  | 59                | 0              | 58
+ 3     | 0                  | 358               | 0              | 164
+ 4     | 0                  | 454               | 0              | 216
+ 5     | 0                  | 238               | 0              | 268
+ 6     | 0                  | 62                | 0              | 59
+ 7     | 0                  | 186               | 0              | 97
+ 8     | 0                  | 87                | 0              | 94
+ 9     | 0                  | 369               | 0              | 386
+ 10    | 0                  | 257               | 2              | 109
+ 11    | 2                  | 798               | 17             | 804
+ 12    | 5                  | 978               | 35             | 996
+ 13    | 0                  | 605               | 2              | 608
+ 14    | 2                  | 277               | 5              | 198
+ 15    | 2                  | 157               | 1              | 50
+ 16    | 26                 | 650               | 12             | 220
+
+
+We will use the `rema` package to analyze this data. We note that the event of 
+acute rheumatic fever is rare, and the data is sparse.
+We also notice the relatively large number of events in some of the cells 
+(particularly, in study 16 and studies 11 and 12 for the placebo group), which
+will increase computation time and memory usage. Accordingly, we ran this data 
+set on a system with an Intel Xeon processor E5-2689 v4 @ 3.10GHz with 192GB of 
+RAM, and it took about 1 hour and 20 minutes to run.
+
+The default arguments of the `rema` function are
+
+```{r Data introduction/background, eval=FALSE}
+rema(trt.events = NULL, trt.total = NULL, ctrl.events = NULL, ctrl.total = NULL, 
+     rema.obj, mid.p = TRUE, distr = TRUE, one.sided.p = FALSE, alpha = 0.05)
+```
+
+where `trt.events`, `trt.total`, `ctrl.events`, and `ctrl.total` are numeric 
+vectors containing, for each independent study, the number of observed events in
+the treatment group, the total number of observations in the treatment group, 
+the number of observed events in the control group, and the total number of 
+observations in the control group, respectively. The remaining arguments specify 
+whether the p-values and confidence interval 
+should be adjusted using the mid-p correction to reduce conservatism (`mid.p`), 
+whether the permutational distribution of the test statistic is returned 
+(`distr`), whether the one-sided p-value is returned (`one.sided.p`), and the 
+level of confidence for a (1 - alpha)% confidence interval for the overall 
+treatment effect (`alpha`).
+
+For the antibiotics data example, we will create the four needed vectors as follows.
+
+```{r Data introduction/vectors}
+anti.events <- c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 5, 0, 2, 2, 26)
+
+anti.total <- c(121, 59, 358, 454, 238, 62, 186, 87, 369, 257, 798, 978, 605, 
+                277, 157, 650)
+
+plac.events <- c(0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 17, 35, 2, 5, 1, 12)
+
+plac.total <- c(118, 58, 164, 216, 268, 59, 97, 94, 386, 109, 804, 996, 608, 
+                198, 50, 220)
+```
+
+It is important to note that no continuity correction should be applied to
+studies with zero observed events to data sets passed into `rema`. 
+
+`rema` will return a list with elements that include the combined
+odds ratio, its associated (1 - alpha)% confidence interval, and the two-sided p-value.
+The following examples illustrate how the returned object and resulting output
+differ depending on the values passed to the various arguments listed above.
+
+
+### Example with default values
+
+This example runs `rema` with the default values. The output contains the
+combined odds ratio, its associated 95% confidence interval, and the mid-p 
+corrected two-sided p-value. Under the details section, the method used when
+computing the odds ratio and its confidence interval is reported. If the observed
+test statistic is not at either extreme (the minimum or maximum value) of the 
+distribution, the conditional maximum likelihood estimate (CMLE) will be used; 
+otherwise, the median unbiased estimate (MUE) will be employed. Here, the CMLE 
+was used. Overall, this method indicates no decrease the risk of acute 
+rheumatic fever from the use of antibiotics.
+
+```{r Example with default values, eval=FALSE}
+antibiotics.rema <- rema(anti.events, anti.total, plac.events, plac.total)
+summary(antibiotics.rema)
+# Call:
+# rema(trt.events = anti.events, trt.total = anti.total, ctrl.events = plac.events, 
+#     ctrl.total = plac.total)
+# 
+#         OR           95%-CI p-value
+#     0.5708 [0.1947; 1.5984]  0.2556
+# 
+# Details on meta-analytical method:
+# - Rare event, heterogeneous meta-analysis method
+# - Two-sided p-value returned (mid.p = TRUE)
+# - Conditional Maximum Likelihood Estimate (CMLE) used when computing the odds ratio
+```
+
+Some may find it interesting to view the permutational distribution. Since the 
+distribution is saved by default, it can be called and printed or visualized 
+with the `plot` function. The asterisk in the plot marks the observed value of
+the test statistic, and the dark grey bars mark the area that contributes to the 
+two-sided p-value. The observed value of the test statistics is also saved in 
+the `rema` object.
+
+```{r Example with distr, eval=TRUE}
+antibiotics.rema$dist
+antibiotics.rema$tstat
+```
+
+```{r fig.height = 5, fig.width = 5, fig.align = "center"}
+plot(antibiotics.rema)
+```
+
+For the remaining examples, we will use the `antibiotics.rema` object as input instead of 
+the first four vectors. Running `rema` once with the first four vectors allows 
+us to obtain the permutational distribution. Once we have that distribution, the various 
+arguments pertaining to inference (e.g. `mid.p`, `alpha`) can be changed 
+without the need to recompute the distribution, saving computation time.
+
+
+### Example with the one-sided p-value
+
+This example requests the one-sided p-value be returned. The summary output
+does not change, but the returned object now has the element `pval.one.sided` 
+that can be accessed. This p-value is the sum of the probabilities from test
+statistics less than or equal to the observed test statistic (the direction of 
+the treatment effect), with the mid-p adjustment.
+
+```{r Example with one.sided.p, eval=TRUE}
+antibiotics.rema.one.pval <- rema(antibiotics.rema, one.sided.p = TRUE)
+antibiotics.rema.one.pval$pval.one.sided
+```
+
+
+### Example with no mid-p adjustment
+
+This example applies no correction to the confidence bounds and the two-sided 
+p-value. As expected, the 95% confidence interval is wider, and the two-sided p-value is 
+larger when the mid-p correction to reduce conservatism is not applied.
+
+```{r Example with mid.p, eval=TRUE}
+rema(antibiotics.rema, mid.p = FALSE)
+```
+
+
+### Example with alpha set to 0.1
+
+This example sets the `alpha` argument to 0.1, resulting in a 90% confidence 
+interval. As expected, increasing alpha decreases the confidence interval width.
+
+```{r Example with alpha, eval=TRUE}
+rema(antibiotics.rema, alpha = 0.1)
+```
